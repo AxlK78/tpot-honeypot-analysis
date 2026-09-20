@@ -94,7 +94,7 @@ sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
 # 2. Restriction des ports d'administration à l'IP de gestion
-export MY_IP="90.90.181.153"
+export MY_IP="VOTRE_IP_PUBLIQUE"
 sudo ufw allow from $MY_IP to any port 64294 proto tcp comment 'T-Pot Management'
 sudo ufw allow from $MY_IP to any port 64295 proto tcp comment 'T-Pot SSH'
 sudo ufw allow from $MY_IP to any port 64297 proto tcp comment 'T-Pot Web Kibana'
@@ -114,7 +114,7 @@ sudo ufw status
 ```
 
 ![Statut du pare-feu UFW](images/01_ufw_status.png)
-*Seule l'IP de gestion (`90.90.181.153`) a accès aux ports d'administration (64294, 64295, 64297) ; les honeypots (`1:64000`) restent ouverts à tout le trafic Internet, en TCP comme en UDP.*
+*Seule l'IP de gestion (masquée dans le README, visible en clair sur la capture) a accès aux ports d'administration (64294, 64295, 64297) ; les honeypots (`1:64000`) restent ouverts à tout le trafic Internet, en TCP comme en UDP.*
 
 ---
 
