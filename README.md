@@ -122,7 +122,7 @@ sudo ufw status
 
 ### 3.2. Mobilité et accès distant via VPN maillé (Tailscale)
 
-Afin de pouvoir administrer le système et consulter le tableau de bord Kibana depuis n'importe quel réseau (réseau étudiant/scolaire, mobilité 4G/5G) sans devoir modifier continuellement l'IP autorisée dans UFW, une liaison maillée **Tailscale** a été mise en place.
+Afin de pouvoir administrer le système et consulter le tableau de bord Kibana depuis n'importe quel réseau sans devoir modifier continuellement l'IP autorisée dans UFW, une liaison maillée **Tailscale** a été mise en place.
 
 1. **Installation sur le VPS Debian :**
    ```bash
@@ -132,7 +132,7 @@ Afin de pouvoir administrer le système et consulter le tableau de bord Kibana d
 
 2. **Vérification du maillage point à point :**
 
-![Statut du réseau Tailscale](images/tailscale_connected_nodes.png)
+![Statut du réseau Tailscale](images/05_tailscale_admin.png)
 *Figure 4 : Appairage réussi du VPS hôte (`vmi3593660` - 100.77.136.111) et de la station cliente (`desktop-uqv01ti` - 100.117.136.22).*
 
 3. **Cloisonnement sur l'interface virtuelle :**
@@ -159,7 +159,7 @@ sudo docker ps
 
 Accès au portail de visualisation global T-Pot :
 
-![Carte interactive globale des attaques T-Pot](images/tpot_world_map_live.jpg)
+![Carte interactive globale des attaques T-Pot](images/07_attacks_map.png)
 *Figure 6 : Visualisation cartographique globale en temps réel des flux hostiles interceptés.*
 
 ---
@@ -168,7 +168,7 @@ Accès au portail de visualisation global T-Pot :
 
 Après plusieurs jours d'exposition directe sur Internet sans filtrage en amont, la volumétrie globale a atteint **162 823 événements enregistrés sur une seule fenêtre de 24 heures**.
 
-![Tableau de bord général Kibana T-Pot](images/kibana_dashboard_overview_162k.jpg)
+![Tableau de bord général Kibana T-Pot](images/06_kibana_overview_24h.png)
 *Figure 7 : Vue générale du tableau de bord Elastic/Kibana affichant les 162 823 événements.*
 
 ### 5.1. Volumétrie globale et répartition par honeypot
@@ -183,31 +183,31 @@ Après plusieurs jours d'exposition directe sur Internet sans filtrage en amont,
 | **Tanner** | Attaques applicatives Web (SQLi, RCE) | 392 | < 0.3 % |
 | **ConPot** | Systèmes industriels (SCADA/ICS) | 161 | < 0.1 % |
 
-![Histogrammes et répartition par destination port et honeypot](images/kibana_histograms_ports_honeypots.jpg)
+![Histogrammes et répartition par destination port et honeypot](images/kibana_attacks_by_port_country.png)
 *Figure 8 : Distribution des attaques par ports de destination, sondes et répartition OS p0f.*
 
 #### Observations clés :
 
 * **Le pic massif Sentrypeer (VoIP) :** Un assaut coordonné d'environ **92 861 requêtes SIP** a été intercepté à 09h30, provenant d'un groupe restreint de seulement 11 adresses IP sources uniques. Cela matérialise une campagne agressive de découverte de PBX/passerelles téléphoniques pour de la fraude aux appels surtaxés (*toll fraud*).
 
-![Pic massif d'attaques SIP à 09h30](images/kibana_attack_histogram_spike_92k.png)
+![Pic massif d'attaques SIP à 09h30](images/08_attacks_spike_histogram.png)
 *Figure 9 : Pic de 92 861 requêtes concentré sur 11 adresses IP sources uniques.*
 
 * **Sollicitation soutenue de Dionaea :** 11 253 connexions ciblant en priorité `smbd` (port 445) et `epmapper` (port 135).
 
-![Répartition des protocoles capturés par Dionaea](images/dionaea_protocols_breakdown.png)
+![Répartition des protocoles capturés par Dionaea](images/12_dionaea_protocols.png)
 *Figure 10 : Prédominance écrasante du protocole SMB (`smbd`) parmi les cibles de Dionaea.*
 
 ### 5.2. Profilage géographique et dynamique spatiale
 
-![Cartographie dynamique des flux hostiles](images/kibana_attack_map_dynamic.png)
+![Cartographie dynamique des flux hostiles](images/07_attacks_map.png)
 *Figure 11 : Densité mondiale des vecteurs d'attaque reçus par le honeypot.*
 
 * **Top pays sources :** États-Unis (culminant à 81 % lors de la rafale SIP), Bulgarie, Allemagne, Russie, Viêt Nam et Philippines.
 
 <p align="center">
-  <img src="images/attacks_by_country_us_81.png" width="48%" alt="Attaques par pays - US dominant" />
-  <img src="images/attacks_by_country_bulgaria_split.png" width="48%" alt="Attaques par pays - Répartition Bulgarie et Europe" />
+  <img src="images/09_attacks_by_country.png" width="48%" alt="Attaques par pays - US dominant" />
+  <img src="images/kibana_attacks_by_port_country.png" width="48%" alt="Attaques par pays - Répartition Bulgarie et Europe" />
 </p>
 *Figure 12 : Analyse de la répartition par pays d'origine (surconsommation US lors du pic SIP vs répartition européenne diffuse).*
 
@@ -218,23 +218,15 @@ Après plusieurs jours d'exposition directe sur Internet sans filtrage en amont,
 
 Sur le honeypot SSH/Telnet **Cowrie**, l'activité oscille continuellement entre les ports 22 et 23 :
 
-![Histogramme temporel des flux entrants Cowrie SSH et Telnet](images/cowrie_ssh_telnet_histogram.png)
+![Histogramme temporel des flux entrants Cowrie SSH et Telnet](images/10_cowrie_ports_histogram.png)
 *Figure 13 : Activité comparée des tentatives d'intrusion SSH vs Telnet sur Cowrie.*
-
-#### Dictionnaires d'identifiants et de mots de passe :
-
-![Nuages de mots-clés utilisateurs et mots de passe](images/kibana_tagcloud_credentials.jpg)
-*Figure 14 : Nuages de mots-clés des identifiants et mots de passe injectés par brute-force.*
-
-* **Comptes ciblés :** `root` (ultra-majoritaire), `admin`, `postgres`, `mysql`, `deploy`, `devops`, `student`.
-* **Mots de passe récurrents :** `123456`, `(empty)` (mot de passe vide), `password`, `1234`, `root`, `admin123`.
 
 #### Commandes post-authentification interceptées :
 
 Dès l'ouverture d'une session interactive factice, les scripts malveillants déroulent une routine de reconnaissance matérielle :
 
-![Commandes post-exploitation saisies sur Cowrie](images/cowrie_input_top10_commands.png)
-*Figure 15 : Top 10 des commandes de profilage système exécutées sur Cowrie.*
+![Commandes post-exploitation saisies sur Cowrie](images/11_cowrie_commands_top10.png)
+*Figure 14 : Top 10 des commandes de profilage système exécutées sur Cowrie.*
 
 ```bash
 uname -s -v -n -r -m
@@ -255,8 +247,8 @@ Contrairement à Cowrie qui capture des scripts shell Linux, la sonde **Dionaea*
 
 Localisation sur l'hôte : `/home/user/tpotce/data/dionaea/binaries/`.
 
-![Extraction des binaires dans Dionaea](images/dionaea_binaries_file_permission.png)
-*Figure 16 : Identification des charges utiles interceptées par Dionaea sur le système hôte.*
+![Extraction des binaires dans Dionaea](images/13_dionaea_binaries_terminal.png)
+*Figure 15 : Identification des charges utiles interceptées par Dionaea sur le système hôte.*
 
 L'exécution avec privilèges administratifs (`sudo file *`) confirme la présence d'exécutables Windows :
 ```bash
@@ -274,13 +266,13 @@ scp -P 64295 root@100.77.136.111:/home/user/tpotce/data/dionaea/binaries/0ab2aed
 
 L'échantillon a été importé dans **Ghidra** au sein d'un projet dédié :
 
-![Projet Ghidra et importation du binaire](images/ghidra_project_sample_bin.png)
-*Figure 17 : Initialisation du projet d'ingénierie inverse dans Ghidra.*
+![Projet Ghidra et importation du binaire](images/ghidra_project_view.png)
+*Figure 16 : Initialisation du projet d'ingénierie inverse dans Ghidra.*
 
 Après lancement de l'analyse automatique, le panneau de décompilation reconstitue le code C de la fonction d'entrée (`entry`) :
 
-![Décompilation initiale du point d'entrée](images/ghidra_entry_decompile_view.png)
-*Figure 18 : Décompilation de la routine d'entrée du binaire.*
+![Décompilation initiale du point d'entrée](images/ghidra_entry_decompile.png)
+*Figure 17 : Décompilation de la routine d'entrée du binaire.*
 
 #### A. Détection des artefacts textuels (Defined Strings)
 
@@ -290,10 +282,10 @@ L'exploration des chaînes de caractères définies révèle deux noms explicite
 2. `launcher.dll` : Nom interne d'origine de la DLL analysée.
 
 <p align="center">
-  <img src="images/ghidra_strings_mssecsvc.png" width="48%" alt="Chaîne mssecsvc.exe identifiée" />
-  <img src="images/ghidra_strings_launcher_dll.png" width="48%" alt="Chaîne launcher.dll identifiée" />
+  <img src="images/14_ghidra_strings_mssecsvc.png" width="48%" alt="Chaîne mssecsvc.exe identifiée" />
+  <img src="images/15_ghidra_strings_launcher.png" width="48%" alt="Chaîne launcher.dll identifiée" />
 </p>
-*Figure 19 : Extraction des artefacts critiques démontrant la présence de la chaîne d'infection WannaCry.*
+*Figure 18 : Extraction des artefacts critiques démontrant la présence de la chaîne d'infection WannaCry.*
 
 Ces identifiants démontrent formellement qu'il s'agit du composant d'injection du ver **WannaCry (WanaCrypt0r 2.0)**, historiquement associé à la porte dérobée de niveau noyau **DoublePulsar** injectée après exploitation de la vulnérabilité SMB **EternalBlue** (MS17-010).
 
@@ -309,8 +301,8 @@ Cette fonction est invoquée par l'exploit DoublePulsar une fois la DLL injecté
 
 L'étude du code C décompilé de la fonction `FUN_10001016` met en évidence le mécanisme de largage (*dropper*) du malware :
 
-![Décompilation Ghidra de la fonction d'extraction de ressource](images/ghidra_decompiled_dropper_routine.png)
-*Figure 20 : Routine d'extraction et d'écriture de la charge utile sur le disque dur.*
+![Décompilation Ghidra de la fonction d'extraction de ressource](images/16_ghidra_decompiler_dropper.png)
+*Figure 19 : Routine d'extraction et d'écriture de la charge utile sur le disque dur.*
 
 ```c
 // Code décompilé dans Ghidra (FUN_10001016)
@@ -340,9 +332,3 @@ return 0;
 Cet exécutable déposé (`mssecsvc.exe`) est ensuite démarré en tâche de fond comme faux service de sécurité Windows pour scanner le web sur le port 445 (SMB) et déclencher la phase de chiffrement.
 
 ---
-
-## 7. Bilan de sécurité & Recommandations
-
-1. **Isolation réseau stricte :** L'exposition directe de services sur Internet sans filtrage applicatif génère une saturation instantanée de scans hostiles. Aucun service d'administration ne doit être accessible sans tunnel VPN chiffré (Tailscale / WireGuard) ou liste blanche stricte.
-2. **Obsolescence des protocoles vulnérables :** L'interception répétée de binaires WannaCry prouve que des botnets exploitent toujours activement la vulnérabilité EternalBlue (MS17-010). Le protocole SMBv1 doit être désactivé sur l'ensemble des réseaux d'entreprise.
-3. **Protection des passerelles VoIP :** Le pic de 92 000 requêtes SIP met en évidence la recherche automatisée de passerelles mal configurées pour des fraudes aux numéros surtaxés, justifiant le recours à du rate-limiting et à des solutions anti-bruteforce (Fail2Ban).
