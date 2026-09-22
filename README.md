@@ -17,19 +17,16 @@ Ce projet documente le déploiement en conditions réelles d'un **honeypot** mul
 7. [Reverse engineering d'un malware capturé (Dionaea + Ghidra)](#7--reverse-engineering-dun-malware-capturé-dionaea--ghidra)
 8. [Bilan et enseignements](#8--bilan-et-enseignements)
 9. [Limites et pistes d'amélioration](#9--limites-et-pistes-damélioration)
-10. [Glossaire](#10--glossaire)
 
 ---
 
-## 1. Qu'est-ce qu'un honeypot, et pourquoi ce projet ?
+## 1. Objectifs et contexte du projet
 
-### 1.1 Le concept, en une phrase
+### 1.1 Rôle et principes d'un honeypot
 
-Un **honeypot** ("pot de miel") est un système **volontairement vulnérable** que l'on place sur Internet, non pas pour rendre un vrai service, mais pour **attirer les attaquants** et **observer ce qu'ils font**. Contrairement à un serveur de production, personne n'a de raison légitime de s'y connecter : donc **toute connexion reçue est, par définition, suspecte**. Cela simplifie énormément l'analyse : pas besoin de trier du "bruit normal", tout ce qui arrive est potentiellement une attaque.
+Un **honeypot** est un système délibérément instrumenté pour simuler des services vulnérables sans héberger de ressources de production. L'absence de trafic légitime vers cette machine confère à tout flux entrant une valeur intrinsèquement anormale ou hostile, simplifiant la détection et l'analyse sans nécessiter de corrélation complexe avec du bruit applicatif métier.
 
-C'est l'équivalent numérique d'un piège à souris appâté : on ne cherche pas à empêcher la souris de venir, on veut savoir *combien* de souris passent, *comment* elles entrent, et *ce qu'elles emportent*.
-
-### 1.2 Pourquoi c'est utile
+### 1.2 Intérêts opérationnels
 
 * **Threat Intelligence** : identifier les IP, techniques et outils réellement utilisés par les attaquants automatisés (bots, vers, scanners), pas en théorie mais en observant du trafic réel.
 * **Détourner l'attention** : dans un vrai système d'information, un honeypot peut faire perdre du temps à un attaquant et déclencher une alerte avant qu'il n'atteigne une cible réelle.
@@ -37,7 +34,7 @@ C'est l'équivalent numérique d'un piège à souris appâté : on ne cherche pa
 
 ### 1.3 Pourquoi T-Pot spécifiquement
 
-**T-Pot** (développé par Deutsche Telekom Security) n'est pas *un* honeypot mais une **plateforme qui en orchestre plusieurs en parallèle**, chacun imitant un service différent (SSH, SMB, VoIP, systèmes industriels...), le tout avec une supervision centralisée (tableaux de bord Kibana). L'intérêt : au lieu de devoir déployer et maintenir dix honeypots séparés, on obtient en une seule installation une vision large des types d'attaques qui circulent sur Internet.
+**T-Pot** n'est pas *un* honeypot mais une **plateforme qui en orchestre plusieurs en parallèle**, chacun imitant un service différent (SSH, SMB, VoIP, systèmes industriels...), le tout avec une supervision centralisée (tableaux de bord Kibana). L'intérêt : au lieu de devoir déployer et maintenir dix honeypots séparés, on obtient en une seule installation une vision large des types d'attaques qui circulent sur Internet.
 
 ### 1.4 Objectifs pédagogiques du projet
 
@@ -60,8 +57,7 @@ C'est l'équivalent numérique d'un piège à souris appâté : on ne cherche pa
 | **Accès Sécurisé** | Tailscale (WireGuard) | Accès d'administration distant chiffré sans exposition publique |
 | **Station d'Analyse** | REMnux / Kali Linux | Environnement sécurisé isolé avec Ghidra |
 
-> **Pour comprendre — pourquoi séparer "hôte" et "conteneurs" ?**
-> T-Pot ne tourne pas directement sur le système Debian : chaque honeypot (Cowrie, Dionaea, etc.) est isolé dans son propre **conteneur Docker**. Cela veut dire que si un attaquant parvient à "casser" un des faux services, il se retrouve enfermé dans un environnement cloisonné, séparé du système réel de la machine. C'est une couche de sécurité supplémentaire indispensable puisque ces services sont, par construction, volontairement vulnérables.
+L'isolation par conteneurs Docker prévient les risques d'échappement direct en cas d'exploitation d'une vulnérabilité applicative sur l'une des sondes exposées, maintenant l'intégrité du système hôte Debian.
 
 ### Schéma logique du flux réseau
 
@@ -113,9 +109,6 @@ sudo rm -f /etc/resolv.conf
 echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf
 ```
 
-> **Pour comprendre — pourquoi ce conflit existe**
-> Un service comme `exim4` (serveur mail local) ou `systemd-resolved` (résolveur DNS de Debian) tourne déjà en arrière-plan et **réserve** certains ports au démarrage du système. Or, T-Pot a besoin d'utiliser *ces mêmes ports* pour ses propres honeypots (par exemple un faux serveur mail sur le port 25, pour piéger les spammeurs). Deux programmes ne peuvent pas écouter sur le même port en même temps : il faut donc libérer la place avant de lancer T-Pot.
-
 ### Étape 3 — Récupération du dépôt T-Pot
 
 Clonage du dépôt officiel puis passage dans le répertoire du projet :
@@ -165,8 +158,8 @@ C'est sans doute la partie la plus critique du projet : **exposer volontairement
 | `64297/TCP` | Interface Web de visualisation (Kibana / T-Pot Web) |
 | `1:64000` (TCP/UDP) | Ports d'écoute des honeypots ouverts au web |
 
-> **Pour comprendre — pourquoi ces ports "bizarres" (64294-64297) ?**
-> T-Pot déplace volontairement ses services d'administration (SSH réel, interface web) vers des ports élevés et non-standards, très différents du port 22 (SSH) ou 443 (HTTPS) habituels. Ce n'est pas de la sécurité en soi (un attaquant déterminé peut scanner tous les ports), mais ça réduit drastiquement le "bruit" des scanners automatiques qui ciblent en priorité les ports connus. Combiné à la restriction par IP ci-dessous, cela reste néanmoins secondaire par rapport à la vraie protection : le filtrage.
+
+T-Pot déplace volontairement ses services d'administration (SSH réel, interface web) vers des ports élevés et non-standards, très différents du port 22 (SSH) ou 443 (HTTPS) habituels. Ce n'est pas de la sécurité en soi (un attaquant déterminé peut scanner tous les ports), mais ça réduit drastiquement le "bruit" des scanners automatiques qui ciblent en priorité les ports connus. Combiné à la restriction par IP ci-dessous, cela reste néanmoins secondaire par rapport à la vraie protection : le filtrage.
 
 ```bash
 # 1. Politiques par défaut : tout refuser en entrée, tout autoriser en sortie
@@ -187,8 +180,7 @@ sudo ufw allow 1:64000/udp comment 'Honeypots UDP'
 sudo ufw enable
 ```
 
-> **Pour comprendre — la logique "deny by default"**
-> La règle `ufw default deny incoming` refuse **tout** trafic entrant par défaut. On ouvre ensuite *explicitement* uniquement ce qui doit l'être. C'est le principe du **moindre privilège** : plutôt que de se demander "que dois-je bloquer ?" (liste potentiellement infinie), on se demande "que dois-je autoriser ?" (liste précise et maîtrisée). C'est l'inverse de la configuration par défaut de beaucoup de routeurs grand public.
+La règle `ufw default deny incoming` refuse **tout** trafic entrant par défaut. On ouvre ensuite *explicitement* uniquement ce qui doit l'être. C'est le principe du **moindre privilège** : plutôt que de se demander "que dois-je bloquer ?" (liste potentiellement infinie), on se demande "que dois-je autoriser ?" (liste précise et maîtrisée). C'est l'inverse de la configuration par défaut de beaucoup de routeurs grand public.
 
 Vérification de la configuration active :
 
@@ -225,8 +217,7 @@ sudo ufw status
 
 L'accès s'effectue ensuite de manière sécurisée et chiffrée via : `https://100.77.136.111:64297` — une adresse **injoignable depuis le reste d'Internet**, uniquement accessible aux appareils explicitement rattachés au réseau Tailscale.
 
-> **Pour comprendre — la différence avec un VPN "classique"**
-> Un VPN traditionnel (type OpenVPN) fait transiter tout le trafic par un serveur central, qui devient un point de passage obligé (et donc un goulot d'étranglement, voire un point de faiblesse). Un VPN **maillé** comme Tailscale essaie plutôt d'établir des connexions **directes** entre chaque paire d'appareils (comme un réseau pair-à-pair), en ne passant par un serveur relais que si la connexion directe échoue. Résultat : plus rapide, et chaque appareil a un rôle symétrique dans le réseau.
+Un VPN traditionnel (type OpenVPN) fait transiter tout le trafic par un serveur central, qui devient un point de passage obligé (et donc un goulot d'étranglement, voire un point de faiblesse). Un VPN **maillé** comme Tailscale essaie plutôt d'établir des connexions **directes** entre chaque paire d'appareils (comme un réseau pair-à-pair), en ne passant par un serveur relais que si la connexion directe échoue. Résultat : plus rapide, et chaque appareil a un rôle symétrique dans le réseau.
 
 ---
 
@@ -274,8 +265,7 @@ Après plusieurs jours d'exposition directe sur Internet, **sans aucun filtrage 
 
 * **Le pic massif Sentrypeer (VoIP) :** Un assaut coordonné d'environ **92 861 requêtes SIP** a été intercepté à 09h30, provenant d'un groupe restreint de seulement **11 adresses IP sources uniques**.
 
- > **Pour comprendre — c'est quoi une attaque SIP / toll fraud ?**
- > **SIP** (*Session Initiation Protocol*) est le protocole utilisé pour établir des appels téléphoniques par Internet (VoIP), par exemple sur des standards téléphoniques d'entreprise (PBX). Le **toll fraud** ("fraude à la surtaxe") consiste, pour un attaquant, à prendre le contrôle d'un tel standard téléphonique pour passer massivement des appels vers des numéros surtaxés qu'il contrôle lui-même — facturés à la victime, empochés par l'attaquant. Ce pic représente donc une campagne de **reconnaissance automatisée** : les attaquants scannent Internet à la recherche de standards téléphoniques mal protégés à exploiter ensuite.
+**SIP** (*Session Initiation Protocol*) est le protocole utilisé pour établir des appels téléphoniques par Internet (VoIP), par exemple sur des standards téléphoniques d'entreprise (PBX). Le **toll fraud** ("fraude à la surtaxe") consiste, pour un attaquant, à prendre le contrôle d'un tel standard téléphonique pour passer massivement des appels vers des numéros surtaxés qu'il contrôle lui-même — facturés à la victime, empochés par l'attaquant. Ce pic représente donc une campagne de **reconnaissance automatisée** : les attaquants scannent Internet à la recherche de standards téléphoniques mal protégés à exploiter ensuite.
 
 ![Pic massif d'attaques SIP à 09h30](images/08_attacks_spike_histogram.png)
 *Figure 9 : Pic de 92 861 requêtes concentré sur 11 adresses IP sources uniques.*
@@ -292,7 +282,7 @@ Après plusieurs jours d'exposition directe sur Internet, **sans aucun filtrage 
 
 * **Top pays sources :** États-Unis (culminant à 81 % lors de la rafale SIP), Bulgarie, Allemagne, Russie, Viêt Nam et Philippines.
 
- > **Attention à l'interprétation** — "pays source" signifie ici le pays où se situe l'adresse IP qui a émis l'attaque, pas nécessairement le pays de l'attaquant lui-même. Une grande partie de ce trafic provient très probablement d'appareils compromis (proxys, botnets, serveurs loués anonymement) répartis dans le monde entier, et non d'individus opérant directement depuis ces pays.
+ici le pays où se situe l'adresse IP qui a émis l'attaque, pas nécessairement le pays de l'attaquant lui-même. Une grande partie de ce trafic provient très probablement d'appareils compromis (proxys, botnets, serveurs loués anonymement) répartis dans le monde entier, et non d'individus opérant directement depuis ces pays.
 
 <p align="center">
  <img src="images/09_attacks_by_country.png" width="48%" alt="Attaques par pays - US dominant" />
@@ -324,8 +314,7 @@ system
 uname -s -v -n -m 2 > /dev/null || ...
 ```
 
-> **Pour comprendre — pourquoi ces commandes précisément ?**
-> La commande `uname` affiche des informations sur le système : type de noyau, architecture du processeur, nom de la machine... Un humain qui pirate un serveur n'a pas besoin de taper ça en premier réflexe. Ces séquences quasi-identiques, répétées par des milliers d'IP différentes, sont la **signature de scripts automatisés** appartenant aux familles de botnets DDoS **Mirai** et **Gafgyt** : avant de télécharger un malware, le script vérifie d'abord l'architecture CPU de la machine infectée (x86_64, ARM, MIPS, SH4...) pour savoir quelle version du binaire ELF (le format d'exécutable Linux) envoyer — un peu comme choisir le bon fichier d'installation selon qu'on est sur Windows ou Mac.
+La commande `uname` affiche des informations sur le système : type de noyau, architecture du processeur, nom de la machine... Un humain qui pirate un serveur n'a pas besoin de taper ça en premier réflexe. Ces séquences quasi-identiques, répétées par des milliers d'IP différentes, sont la **signature de scripts automatisés** appartenant aux familles de botnets DDoS **Mirai** et **Gafgyt** : avant de télécharger un malware, le script vérifie d'abord l'architecture CPU de la machine infectée (x86_64, ARM, MIPS, SH4...) pour savoir quelle version du binaire ELF (le format d'exécutable Linux) envoyer — un peu comme choisir le bon fichier d'installation selon qu'on est sur Windows ou Mac.
 
 ---
 
@@ -333,8 +322,7 @@ uname -s -v -n -m 2 > /dev/null || ...
 
 Contrairement à Cowrie, qui capture des **scripts shell Linux**, la sonde **Dionaea** émule des services Windows (SMB, RPC...) et a intercepté plusieurs **binaires exécutables Windows** envoyés directement par des attaquants via le port 445.
 
-> **Pour comprendre — c'est quoi le "reverse engineering" ?**
-> La rétro-ingénierie (*reverse engineering*) consiste à **analyser un programme sans avoir son code source**, pour comprendre ce qu'il fait réellement. C'est un peu comme essayer de reconstituer la recette d'un plat en le goûtant et en l'analysant chimiquement, sans avoir le livre de cuisine original. Ici, on utilise **Ghidra**, un outil open-source développé par la NSA, qui prend un exécutable compilé et tente de le **décompiler** : reconstruire un code source en langage C lisible à partir du binaire (langage machine).
+La rétro-ingénierie (*reverse engineering*) consiste à **analyser un programme sans avoir son code source**, pour comprendre ce qu'il fait réellement. C'est un peu comme essayer de reconstituer la recette d'un plat en le goûtant et en l'analysant chimiquement, sans avoir le livre de cuisine original. Ici, on utilise **Ghidra**, un outil open-source développé par la NSA, qui prend un exécutable compilé et tente de le **décompiler** : reconstruire un code source en langage C lisible à partir du binaire (langage machine).
 
 ### 7.1 Extraction et qualification des charges utiles
 
@@ -349,8 +337,7 @@ sudo file *
 # Résultat : PE32 executable (DLL) Intel 80386, for MS Windows
 ```
 
-> **Pour comprendre — c'est quoi un "PE32" ?**
-> **PE** (*Portable Executable*) est le format standard des fichiers exécutables sous Windows (`.exe`, `.dll`...), l'équivalent du format ELF sous Linux. "32" indique qu'il s'agit d'un binaire pour architecture 32 bits, "Intel 80386" précise le jeu d'instructions processeur ciblé. C'est cette commande `file` qui permet, en un coup d'œil, d'identifier la nature d'un fichier sans se fier à son extension (qui peut être trompeuse).
+**PE** (*Portable Executable*) est le format standard des fichiers exécutables sous Windows (`.exe`, `.dll`...), l'équivalent du format ELF sous Linux. "32" indique qu'il s'agit d'un binaire pour architecture 32 bits, "Intel 80386" précise le jeu d'instructions processeur ciblé. C'est cette commande `file` qui permet, en un coup d'œil, d'identifier la nature d'un fichier sans se fier à son extension (qui peut être trompeuse).
 
 Un échantillon nommé d'après son hash MD5 (`0ab2aeda90221832167e5127332dd702`) a été isolé et transféré vers l'environnement d'analyse (REMnux) :
 
@@ -358,7 +345,7 @@ Un échantillon nommé d'après son hash MD5 (`0ab2aeda90221832167e5127332dd702`
 scp -P 64295 root@100.77.136.111:/home/user/tpotce/data/dionaea/binaries/0ab2aeda90221832167e5127332dd702 ./sample.bin
 ```
 
-> **Bonne pratique de sécurité** — l'analyse d'un binaire malveillant réel ne doit **jamais** se faire sur la machine principale. Le transfert se fait ici vers **REMnux**, une distribution Linux dédiée à l'analyse de malware, elle-même isolée dans une machine virtuelle sans connexion vers le reste du réseau. Le binaire n'est jamais exécuté : seule une analyse *statique* (lecture du code sans l'exécuter) est réalisée.
+**Bonne pratique de sécurité** — l'analyse d'un binaire malveillant réel ne doit **jamais** se faire sur la machine principale. Le transfert se fait ici vers **REMnux**, une distribution Linux dédiée à l'analyse de malware, elle-même isolée dans une machine virtuelle sans connexion vers le reste du réseau. Le binaire n'est jamais exécuté : seule une analyse *statique* (lecture du code sans l'exécuter) est réalisée.
 
 ### 7.2 Analyse statique et désassemblage sous Ghidra
 
@@ -386,13 +373,6 @@ Une des premières étapes classiques en analyse de malware consiste à lister t
 *Figure 18 : Extraction des artefacts critiques démontrant la présence de la chaîne d'infection WannaCry.*
 
 Ces identifiants sont des **noms de fichiers connus et documentés** associés à un incident majeur de cybersécurité : ils démontrent qu'il s'agit du composant d'injection du ver **WannaCry** (*WanaCrypt0r 2.0*), historiquement propagé via la porte dérobée de niveau noyau **DoublePulsar**, elle-même déployée en exploitant la vulnérabilité SMB **EternalBlue** (référencée **MS17-010**).
-
-> **Pour comprendre — remettre WannaCry en contexte**
-> En mai 2017, **WannaCry** a infecté plus de 200 000 ordinateurs dans 150 pays en quelques jours, paralysant notamment des hôpitaux britanniques (NHS). Son mode de propagation était inédit pour un ransomware grand public : il ne nécessitait **aucune action de la victime** (pas de clic sur un lien piégé). Il se propageait tout seul, de machine en machine, en exploitant :
-> - **EternalBlue** : une faille critique du protocole SMB (partage de fichiers Windows), initialement découverte et gardée secrète par la NSA, puis divulguée publiquement par le groupe de hackers *The Shadow Brokers*.
-> - **DoublePulsar** : une porte dérobée (backdoor), également issue de l'arsenal de la NSA, installée *via* EternalBlue et servant ensuite à injecter n'importe quel code — ici, le composant WannaCry — directement en mémoire, dans le processus système `lsass.exe`.
->
-> Le fait de retrouver ce même artefact, encore actif, capturé par un honeypot en 2025-2026, illustre un phénomène bien connu en sécurité : un malware ancien et largement documenté peut continuer à circuler indéfiniment sur Internet via des botnets et des scanners automatisés, bien après que le correctif officiel a été publié (en l'occurrence, dès mars 2017).
 
 #### B. Analyse du point d'entrée et de la table d'exportation
 
@@ -429,8 +409,7 @@ return 0;
 
 #### Décomposition analytique de la routine
 
-> **Pour comprendre — la technique du "dropper" en une image**
-> Imaginez une DLL comme une valise. La plupart des logiciels ne transportent que ce dont ils ont besoin pour fonctionner. Un *dropper*, lui, cache un **second exécutable complet** dans un compartiment secret de sa propre valise (ici, la **section "ressources"** du fichier PE, normalement prévue pour stocker des icônes, images ou textes). Une fois lancé, il ouvre ce compartiment, en sort le fichier caché, et l'écrit sur le disque de la victime — un peu comme une poupée russe.
+La plupart des logiciels ne transportent que ce dont ils ont besoin pour fonctionner. Un *dropper*, lui, cache un **second exécutable complet** dans un compartiment secret de sa propre valise (ici, la **section "ressources"** du fichier PE, normalement prévue pour stocker des icônes, images ou textes). Une fois lancé, il ouvre ce compartiment, en sort le fichier caché, et l'écrit sur le disque de la victime — un peu comme une poupée russe.
 
 1. **Localisation de la ressource interne (`FindResourceA` & `LoadResource`) :** la DLL recherche, dans sa propre section de ressources, un bloc de données identifié par l'ID `0x65` (101 en décimal), puis le charge en mémoire vive.
 2. **Verrouillage du tampon (`LockResource` & `SizeofResource`) :** récupération de l'adresse mémoire exacte du payload caché, et de sa taille en octets — l'équivalent de "où se trouve le fichier caché, et combien pèse-t-il ?".
@@ -460,25 +439,5 @@ Ce projet a permis de mettre en pratique, de bout en bout, une chaîne complète
 
 ---
 
-## 10. Glossaire
-
-| Terme | Définition simple |
-| :--- | :--- |
-| **Honeypot** | Système volontairement vulnérable, déployé pour attirer et observer les attaquants. |
-| **UFW** | *Uncomplicated Firewall* : outil simplifié pour configurer le pare-feu Linux. |
-| **VPN maillé** | Réseau privé virtuel où chaque appareil peut communiquer directement avec les autres, sans passer systématiquement par un serveur central. |
-| **SIP / VoIP** | Protocole et technologie permettant de passer des appels téléphoniques via Internet. |
-| **Toll fraud** | Fraude consistant à détourner un système téléphonique pour appeler massivement des numéros surtaxés. |
-| **SMB** | Protocole Windows de partage de fichiers/imprimantes en réseau local. |
-| **EternalBlue** | Faille critique du protocole SMB, initialement exploitée par la NSA, à l'origine de la propagation de WannaCry. |
-| **DoublePulsar** | Porte dérobée installée via EternalBlue, permettant d'injecter du code arbitraire en mémoire. |
-| **Dropper** | Technique consistant à cacher un second fichier malveillant à l'intérieur d'un premier, puis à l'extraire et l'exécuter. |
-| **PE32** | Format standard des exécutables Windows 32 bits (.exe, .dll). |
-| **ELF** | Format standard des exécutables sous Linux (équivalent du PE sous Windows). |
-| **Ghidra** | Outil open-source de rétro-ingénierie (désassemblage / décompilation) développé par la NSA. |
-| **Mirai / Gafgyt** | Familles de malwares formant des botnets, historiquement utilisés pour des attaques DDoS via des objets connectés compromis. |
-| **p0f** | Outil d'empreinte passive permettant de deviner le système d'exploitation d'une machine à partir de ses paquets réseau. |
-
----
 
 *Projet réalisé dans un cadre pédagogique de cybersécurité défensive (Blue Team). Toutes les analyses de malware ont été effectuées en environnement isolé, sans exécution du code sur un système de production.*
